@@ -78,13 +78,6 @@ jobs:
             gnupg \
             ca-certificates
 
-          # NOTE: Cross-building a Qt 6 application for arm64 also requires an
-          # arm64 Qt toolchain. qt6-base-dev:arm64 provides the dev libraries,
-          # but dpkg-buildpackage -aarm64 will need CMAKE_TOOLCHAIN_FILE / a
-          # cross qmake (or qemu-user) to actually link the Qt 6 binary.
-          # If the arm64 link fails, install qemu-user and a cross qtbase, or
-          # restrict release to amd64 until the arm64 Qt toolchain is ready.
-
       # --------------------------------------------------------
       # Set version
       # --------------------------------------------------------
@@ -92,8 +85,6 @@ jobs:
         run: |
           set -e
 
-          # Prefer the tag version, otherwise fall back to the project
-          # version parsed from debian/changelog (e.g. on workflow_dispatch).
           VERSION=""
           if [[ "${GITHUB_REF}" == refs/tags/v* ]]; then
             VERSION="${GITHUB_REF#refs/tags/v}"
@@ -126,8 +117,6 @@ jobs:
           DEB_HOST_ARCH: amd64
         run: |
           set -e
-
-          echo "Building Nexfetch for amd64"
 
           make clean || true
 
@@ -169,8 +158,6 @@ jobs:
           DEB_BUILD_OPTIONS: nocheck
         run: |
           set -e
-
-          echo "Building Nexfetch for arm64"
 
           make clean || true
 
@@ -244,9 +231,6 @@ jobs:
     if: startsWith(github.ref, 'refs/tags/v') || github.event_name == 'workflow_dispatch'
 
     steps:
-      # --------------------------------------------------------
-      # Download all packages
-      # --------------------------------------------------------
       - name: Download all .deb artifacts
         uses: actions/download-artifact@v4
         with:
@@ -254,31 +238,16 @@ jobs:
           merge-multiple: true
           path: release
 
-      # --------------------------------------------------------
-      # Verify release files
-      # --------------------------------------------------------
       - name: Verify release files
         run: |
           set -e
-
-          echo "Release files:"
-
           find release -type f -maxdepth 2 -print
-
           DEBS=(release/*.deb)
-
           if [ ${#DEBS[@]} -eq 0 ]; then
             echo "ERROR: No .deb packages found."
             exit 1
           fi
 
-          for deb in "${DEBS[@]}"; do
-            echo "Found: $deb"
-          done
-
-      # --------------------------------------------------------
-      # Create GitHub Release
-      # --------------------------------------------------------
       - name: Upload to GitHub Release
         uses: softprops/action-gh-release@v2
         with:
@@ -299,9 +268,6 @@ jobs:
     if: startsWith(github.ref, 'refs/tags/v') || github.event_name == 'workflow_dispatch'
 
     steps:
-      # --------------------------------------------------------
-      # Download all packages
-      # --------------------------------------------------------
       - name: Download all .deb artifacts
         uses: actions/download-artifact@v4
         with:
@@ -309,35 +275,21 @@ jobs:
           merge-multiple: true
           path: debs
 
-      # --------------------------------------------------------
-      # Verify packages
-      # --------------------------------------------------------
       - name: Verify downloaded packages
         run: |
           set -e
-
-          echo "Downloaded packages:"
-
           find debs -type f -print
-
           DEBS=(debs/*.deb)
-
           if [ ${#DEBS[@]} -eq 0 ]; then
             echo "ERROR: No .deb files found!"
             exit 1
           fi
-
           echo "Found ${#DEBS[@]} package(s)."
 
-      # --------------------------------------------------------
-      # Install repository tools
-      # --------------------------------------------------------
       - name: Install APT repository tools
         run: |
           set -e
-
           sudo apt-get update
-
           sudo apt-get install -y \
             reprepro \
             gnupg \
@@ -345,7 +297,7 @@ jobs:
             ca-certificates
 
       # --------------------------------------------------------
-      # Configure GPG
+      # Configure GPG (pinentry-mode loopback, key has no passphrase)
       # --------------------------------------------------------
       - name: Configure GPG
         run: |
@@ -354,22 +306,20 @@ jobs:
           mkdir -p "$HOME/.gnupg"
           chmod 700 "$HOME/.gnupg"
 
-          cat > "$HOME/.gnupg/gpg-agent.conf" <<'EOF'
+          cat > "$HOME/.gnupg/gpg-agent.conf" <<EOF
+          pinentry-program $(which pinentry-tty)
           allow-loopback-pinentry
-          allow-preset-passphrase
           EOF
 
           cat > "$HOME/.gnupg/gpg.conf" <<'EOF'
           batch
           no-tty
+          pinentry-mode loopback
           EOF
 
           gpgconf --kill gpg-agent || true
           gpgconf --launch gpg-agent
 
-      # --------------------------------------------------------
-      # Import signing key
-      # --------------------------------------------------------
       - name: Import GPG signing key
         env:
           GPG_PRIVATE_KEY: ${{ secrets.GPG_PRIVATE_KEY }}
@@ -381,37 +331,23 @@ jobs:
             exit 1
           fi
 
-          echo "$GPG_PRIVATE_KEY" | \
-            gpg \
-              --batch \
-              --import
+          echo "$GPG_PRIVATE_KEY" | gpg --batch --import
 
           echo
           echo "Imported secret keys:"
           gpg --list-secret-keys --keyid-format LONG
 
-      # --------------------------------------------------------
-      # Verify signing key
-      # --------------------------------------------------------
       - name: Verify GPG signing key
         run: |
           set -e
-
           KEY_ID="33F527C35036B510FFD10A1078517E50002AC314"
-
-          echo "Checking signing key..."
-
           if ! gpg --list-secret-keys "$KEY_ID" >/dev/null 2>&1; then
             echo "ERROR: Signing key was not imported."
             exit 1
           fi
-
           echo "Signing key found:"
           gpg --list-secret-keys --keyid-format LONG "$KEY_ID"
 
-      # --------------------------------------------------------
-      # Checkout central APT repository
-      # --------------------------------------------------------
       - name: Checkout central apt-repo
         uses: actions/checkout@v4
         with:
@@ -420,15 +356,11 @@ jobs:
           token: ${{ secrets.APT_REPO_TOKEN }}
           path: apt-repo
 
-      # --------------------------------------------------------
-      # Configure reprepro
-      # --------------------------------------------------------
       - name: Configure reprepro
         run: |
           set -e
 
           cd apt-repo
-
           mkdir -p conf
 
           if [ ! -f conf/distributions ]; then
@@ -437,10 +369,9 @@ jobs:
           Label: Hyggshi OS
           Codename: stable
           Suite: stable
-          Architectures: amd64 arm64
+          Architectures: amd64 arm64 armhf source
           Components: main
           Description: Hyggshi OS APT Repository
-          SignWith: 33F527C35036B510FFD10A1078517E50002AC314
           EOF
           fi
 
@@ -448,37 +379,13 @@ jobs:
           cat conf/distributions
 
       # --------------------------------------------------------
-      # Add packages
+      # Add packages (no passphrase needed, key already unprotected)
       # --------------------------------------------------------
       - name: Include packages into APT repository
-        env:
-          GPG_PASSPHRASE: ${{ secrets.GPG_PASSPHRASE }}
         run: |
           set -e
 
           cd apt-repo
-
-          if [ -z "$GPG_PASSPHRASE" ]; then
-            echo "ERROR: GPG_PASSPHRASE secret is empty."
-            exit 1
-          fi
-
-          # Unlock the signing key non-interactively by pre-seeding the
-          # passphrase into gpg-agent (no TTY is available in CI).
-          KEYGRIP=$(gpg \
-            --with-keygrip \
-            --list-secret-keys "33F527C35036B510FFD10A1078517E50002AC314" \
-            | awk '/Keygrip/{print $2; exit}')
-
-          if [ -z "$KEYGRIP" ]; then
-            echo "ERROR: Could not find the keygrip for the signing key."
-            exit 1
-          fi
-
-          echo "Unlocking signing key keygrip ${KEYGRIP} in gpg-agent..."
-
-          gpg-preset-passphrase --passphrase "$GPG_PASSPHRASE" --preset "$KEYGRIP"
-
           shopt -s nullglob
 
           DEBS=(../debs/*.deb)
@@ -489,43 +396,25 @@ jobs:
           fi
 
           for deb in "${DEBS[@]}"; do
-            echo "Including package:"
-            echo "  $deb"
-
-            reprepro \
-              includedeb \
-              stable \
-              "$deb"
+            echo "Including package: $deb"
+            reprepro includedeb stable "$deb"
           done
 
-      # --------------------------------------------------------
-      # Generate Release metadata
-      # --------------------------------------------------------
       - name: Generate APT Release metadata
         run: |
           set -e
-
           cd apt-repo
-
           echo "APT repository structure:"
-
           find dists/stable -maxdepth 3 -type f -print | sort
 
       # --------------------------------------------------------
-      # Sign Release files
+      # Sign Release files manually (empty passphrase, matches key)
       # --------------------------------------------------------
       - name: Sign APT Release files
-        env:
-          GPG_PASSPHRASE: ${{ secrets.GPG_PASSPHRASE }}
         run: |
           set -e
 
           KEY_ID="33F527C35036B510FFD10A1078517E50002AC314"
-
-          if [ -z "$GPG_PASSPHRASE" ]; then
-            echo "ERROR: GPG_PASSPHRASE secret is empty."
-            exit 1
-          fi
 
           cd apt-repo/dists/stable
 
@@ -534,27 +423,24 @@ jobs:
             exit 1
           fi
 
-          echo "Signing Release with:"
-          echo "$KEY_ID"
+          echo "Signing Release with: $KEY_ID"
 
-          # Detached signature
           gpg \
             --batch \
             --yes \
             --pinentry-mode loopback \
-            --passphrase "$GPG_PASSPHRASE" \
+            --passphrase '' \
             --local-user "$KEY_ID" \
             --armor \
             --detach-sign \
             --output Release.gpg \
             Release
 
-          # Clear-signed InRelease
           gpg \
             --batch \
             --yes \
             --pinentry-mode loopback \
-            --passphrase "$GPG_PASSPHRASE" \
+            --passphrase '' \
             --local-user "$KEY_ID" \
             --armor \
             --clearsign \
@@ -565,35 +451,18 @@ jobs:
           echo "Generated signatures:"
           ls -lh Release Release.gpg InRelease
 
-      # --------------------------------------------------------
-      # Verify signatures
-      # --------------------------------------------------------
       - name: Verify APT signatures
         run: |
           set -e
-
           cd apt-repo/dists/stable
-
           echo "Verifying Release.gpg..."
-
-          gpg \
-            --verify \
-            Release.gpg \
-            Release
-
+          gpg --verify Release.gpg Release
           echo
           echo "Verifying InRelease..."
-
-          gpg \
-            --verify \
-            InRelease
-
+          gpg --verify InRelease
           echo
           echo "GPG signatures verified successfully."
 
-      # --------------------------------------------------------
-      # Commit & push repository
-      # --------------------------------------------------------
       - name: Commit and push APT repository
         run: |
           set -e
@@ -610,7 +479,5 @@ jobs:
             exit 0
           fi
 
-          git commit \
-            -m "Publish updatecenter ${{ github.ref_name }} via CI"
-
+          git commit -m "Publish updatecenter ${{ github.ref_name }} via CI"
           git push origin gh-pages
