@@ -86,6 +86,7 @@ jobs:
           set -e
 
           VERSION=""
+
           if [[ "${GITHUB_REF}" == refs/tags/v* ]]; then
             VERSION="${GITHUB_REF#refs/tags/v}"
           fi
@@ -220,6 +221,7 @@ jobs:
           path: dist/*.deb
           if-no-files-found: error
 
+
   # ============================================================
   # GITHUB RELEASE
   # ============================================================
@@ -241,8 +243,11 @@ jobs:
       - name: Verify release files
         run: |
           set -e
+
           find release -type f -maxdepth 2 -print
+
           DEBS=(release/*.deb)
+
           if [ ${#DEBS[@]} -eq 0 ]; then
             echo "ERROR: No .deb packages found."
             exit 1
@@ -256,6 +261,7 @@ jobs:
           prerelease: false
           generate_release_notes: true
 
+
   # ============================================================
   # PUBLISH CENTRAL APT REPOSITORY
   # ============================================================
@@ -268,6 +274,9 @@ jobs:
     if: startsWith(github.ref, 'refs/tags/v') || github.event_name == 'workflow_dispatch'
 
     steps:
+      # --------------------------------------------------------
+      # Download packages
+      # --------------------------------------------------------
       - name: Download all .deb artifacts
         uses: actions/download-artifact@v4
         with:
@@ -275,21 +284,33 @@ jobs:
           merge-multiple: true
           path: debs
 
+      # --------------------------------------------------------
+      # Verify downloaded packages
+      # --------------------------------------------------------
       - name: Verify downloaded packages
         run: |
           set -e
+
           find debs -type f -print
+
           DEBS=(debs/*.deb)
+
           if [ ${#DEBS[@]} -eq 0 ]; then
             echo "ERROR: No .deb files found!"
             exit 1
           fi
+
           echo "Found ${#DEBS[@]} package(s)."
 
+      # --------------------------------------------------------
+      # Install APT repository tools
+      # --------------------------------------------------------
       - name: Install APT repository tools
         run: |
           set -e
+
           sudo apt-get update
+
           sudo apt-get install -y \
             reprepro \
             gnupg \
@@ -297,7 +318,7 @@ jobs:
             ca-certificates
 
       # --------------------------------------------------------
-      # Configure GPG (pinentry-mode loopback, key has no passphrase)
+      # Configure GPG
       # --------------------------------------------------------
       - name: Configure GPG
         run: |
@@ -320,6 +341,9 @@ jobs:
           gpgconf --kill gpg-agent || true
           gpgconf --launch gpg-agent
 
+      # --------------------------------------------------------
+      # Import GPG signing key
+      # --------------------------------------------------------
       - name: Import GPG signing key
         env:
           GPG_PRIVATE_KEY: ${{ secrets.GPG_PRIVATE_KEY }}
@@ -337,17 +361,26 @@ jobs:
           echo "Imported secret keys:"
           gpg --list-secret-keys --keyid-format LONG
 
+      # --------------------------------------------------------
+      # Verify GPG signing key
+      # --------------------------------------------------------
       - name: Verify GPG signing key
         run: |
           set -e
+
           KEY_ID="33F527C35036B510FFD10A1078517E50002AC314"
+
           if ! gpg --list-secret-keys "$KEY_ID" >/dev/null 2>&1; then
             echo "ERROR: Signing key was not imported."
             exit 1
           fi
+
           echo "Signing key found:"
           gpg --list-secret-keys --keyid-format LONG "$KEY_ID"
 
+      # --------------------------------------------------------
+      # Checkout central apt-repo
+      # --------------------------------------------------------
       - name: Checkout central apt-repo
         uses: actions/checkout@v4
         with:
@@ -356,11 +389,15 @@ jobs:
           token: ${{ secrets.APT_REPO_TOKEN }}
           path: apt-repo
 
+      # --------------------------------------------------------
+      # Configure reprepro
+      # --------------------------------------------------------
       - name: Configure reprepro
         run: |
           set -e
 
           cd apt-repo
+
           mkdir -p conf
 
           if [ ! -f conf/distributions ]; then
@@ -379,13 +416,14 @@ jobs:
           cat conf/distributions
 
       # --------------------------------------------------------
-      # Add packages (no passphrase needed, key already unprotected)
+      # Add packages
       # --------------------------------------------------------
       - name: Include packages into APT repository
         run: |
           set -e
 
           cd apt-repo
+
           shopt -s nullglob
 
           DEBS=(../debs/*.deb)
@@ -400,21 +438,33 @@ jobs:
             reprepro includedeb stable "$deb"
           done
 
+      # --------------------------------------------------------
+      # Generate APT Release metadata
+      # --------------------------------------------------------
       - name: Generate APT Release metadata
         run: |
           set -e
+
           cd apt-repo
+
           echo "APT repository structure:"
           find dists/stable -maxdepth 3 -type f -print | sort
 
       # --------------------------------------------------------
-      # Sign Release files manually (empty passphrase, matches key)
+      # Sign Release files
       # --------------------------------------------------------
       - name: Sign APT Release files
+        env:
+          GPG_PASSPHRASE: ${{ secrets.GPG_PASSPHRASE }}
         run: |
           set -e
 
           KEY_ID="33F527C35036B510FFD10A1078517E50002AC314"
+
+          if [ -z "$GPG_PASSPHRASE" ]; then
+            echo "ERROR: GPG_PASSPHRASE secret is empty."
+            exit 1
+          fi
 
           cd apt-repo/dists/stable
 
@@ -429,7 +479,7 @@ jobs:
             --batch \
             --yes \
             --pinentry-mode loopback \
-            --passphrase '' \
+            --passphrase "$GPG_PASSPHRASE" \
             --local-user "$KEY_ID" \
             --armor \
             --detach-sign \
@@ -440,7 +490,7 @@ jobs:
             --batch \
             --yes \
             --pinentry-mode loopback \
-            --passphrase '' \
+            --passphrase "$GPG_PASSPHRASE" \
             --local-user "$KEY_ID" \
             --armor \
             --clearsign \
@@ -451,18 +501,30 @@ jobs:
           echo "Generated signatures:"
           ls -lh Release Release.gpg InRelease
 
+      # --------------------------------------------------------
+      # Verify APT signatures
+      # --------------------------------------------------------
       - name: Verify APT signatures
         run: |
           set -e
+
           cd apt-repo/dists/stable
+
           echo "Verifying Release.gpg..."
+
           gpg --verify Release.gpg Release
+
           echo
           echo "Verifying InRelease..."
+
           gpg --verify InRelease
+
           echo
           echo "GPG signatures verified successfully."
 
+      # --------------------------------------------------------
+      # Commit and push APT repository
+      # --------------------------------------------------------
       - name: Commit and push APT repository
         run: |
           set -e
@@ -480,4 +542,5 @@ jobs:
           fi
 
           git commit -m "Publish updatecenter ${{ github.ref_name }} via CI"
+
           git push origin gh-pages
