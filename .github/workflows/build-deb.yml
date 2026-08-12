@@ -1,0 +1,604 @@
+name: Build & Publish .deb Package
+
+on:
+  workflow_dispatch:
+
+  push:
+    tags:
+      - 'v*'
+
+permissions:
+  contents: write
+
+jobs:
+  # ============================================================
+  # BUILD DEB PACKAGES
+  # ============================================================
+  build-deb:
+    name: Build .deb Package (${{ matrix.arch }})
+    runs-on: ubuntu-latest
+
+    strategy:
+      fail-fast: false
+      matrix:
+        arch:
+          - amd64
+          - arm64
+
+    steps:
+      # --------------------------------------------------------
+      # Checkout
+      # --------------------------------------------------------
+      - name: Checkout source
+        uses: actions/checkout@v4
+
+      # --------------------------------------------------------
+      # Install dependencies
+      # --------------------------------------------------------
+      - name: Install build dependencies
+        run: |
+          set -e
+
+          sudo dpkg --add-architecture arm64
+
+          if [ -f /etc/apt/sources.list.d/ubuntu.sources ]; then
+            sudo sed -i '/^Types: deb$/a Architectures: amd64' \
+              /etc/apt/sources.list.d/ubuntu.sources
+          fi
+
+          UBUNTU_CODENAME="$(. /etc/os-release && echo "$VERSION_CODENAME")"
+
+          echo "Ubuntu codename: ${UBUNTU_CODENAME}"
+
+          echo "deb [arch=arm64] http://ports.ubuntu.com/ubuntu-ports ${UBUNTU_CODENAME} main restricted universe multiverse" \
+            | sudo tee /etc/apt/sources.list.d/arm64-ports.list
+
+          echo "deb [arch=arm64] http://ports.ubuntu.com/ubuntu-ports ${UBUNTU_CODENAME}-updates main restricted universe multiverse" \
+            | sudo tee -a /etc/apt/sources.list.d/arm64-ports.list
+
+          echo "deb [arch=arm64] http://ports.ubuntu.com/ubuntu-ports ${UBUNTU_CODENAME}-security main restricted universe multiverse" \
+            | sudo tee -a /etc/apt/sources.list.d/arm64-ports.list
+
+          sudo apt-get update
+
+          sudo apt-get install -y \
+            build-essential \
+            debhelper \
+            devscripts \
+            gcc \
+            make \
+            crossbuild-essential-arm64 \
+            libc6:arm64 \
+            reprepro \
+            gnupg \
+            ca-certificates
+
+      # --------------------------------------------------------
+      # Set version
+      # --------------------------------------------------------
+      - name: Set version
+        run: |
+          set -e
+
+          # Prefer the tag version, otherwise fall back to the project
+          # version parsed from debian/changelog (e.g. on workflow_dispatch).
+          VERSION=""
+          if [[ "${GITHUB_REF}" == refs/tags/v* ]]; then
+            VERSION="${GITHUB_REF#refs/tags/v}"
+          fi
+
+          if [ -z "${VERSION}" ]; then
+            VERSION="$(dpkg-parsechangelog -SVersion 2>/dev/null | sed 's/-[0-9]*$//' || true)"
+          fi
+
+          if [ -z "${VERSION}" ]; then
+            echo "ERROR: Could not determine a version. Push a v* tag or provide debian/changelog."
+            exit 1
+          fi
+
+          echo "VERSION=${VERSION}" >> "$GITHUB_ENV"
+
+          echo "Building version: ${VERSION}"
+
+          dch \
+            --newversion "${VERSION}-1" \
+            --distribution unstable \
+            "Release version ${VERSION}"
+
+      # --------------------------------------------------------
+      # Build amd64
+      # --------------------------------------------------------
+      - name: Build for amd64
+        if: matrix.arch == 'amd64'
+        env:
+          DEB_HOST_ARCH: amd64
+        run: |
+          set -e
+
+          echo "Building Nexfetch for amd64"
+
+          make clean || true
+
+          dpkg-buildpackage \
+            -us \
+            -uc \
+            -b \
+            -d \
+            -aamd64
+
+          mkdir -p dist
+
+          shopt -s nullglob
+
+          for file in ../updatecenter_*.deb; do
+            mv "$file" dist/
+          done
+
+          for file in ../updatecenter_*.buildinfo; do
+            mv "$file" dist/
+          done
+
+          for file in ../updatecenter_*.changes; do
+            mv "$file" dist/
+          done
+
+          echo "Generated files:"
+          ls -lah dist/
+
+      # --------------------------------------------------------
+      # Build arm64
+      # --------------------------------------------------------
+      - name: Build for arm64
+        if: matrix.arch == 'arm64'
+        env:
+          CC: aarch64-linux-gnu-gcc
+          CXX: aarch64-linux-gnu-g++
+          DEB_HOST_ARCH: arm64
+          DEB_BUILD_OPTIONS: nocheck
+        run: |
+          set -e
+
+          echo "Building Nexfetch for arm64"
+
+          make clean || true
+
+          dpkg-buildpackage \
+            -us \
+            -uc \
+            -b \
+            -d \
+            -aarm64
+
+          mkdir -p dist
+
+          shopt -s nullglob
+
+          for file in ../updatecenter_*.deb; do
+            mv "$file" dist/
+          done
+
+          for file in ../updatecenter_*.buildinfo; do
+            mv "$file" dist/
+          done
+
+          for file in ../updatecenter_*.changes; do
+            mv "$file" dist/
+          done
+
+          echo "Generated files:"
+          ls -lah dist/
+
+      # --------------------------------------------------------
+      # Verify package
+      # --------------------------------------------------------
+      - name: Verify .deb package
+        run: |
+          set -e
+
+          echo "Checking generated packages..."
+
+          ls -lah dist/
+
+          DEBS=(dist/*.deb)
+
+          if [ ${#DEBS[@]} -eq 0 ]; then
+            echo "ERROR: No .deb package was generated."
+            exit 1
+          fi
+
+          for deb in "${DEBS[@]}"; do
+            echo "Checking: $deb"
+            dpkg-deb --info "$deb"
+          done
+
+      # --------------------------------------------------------
+      # Upload artifact
+      # --------------------------------------------------------
+      - name: Upload .deb artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: updatecenter-deb-${{ matrix.arch }}
+          path: dist/*.deb
+          if-no-files-found: error
+
+  # ============================================================
+  # GITHUB RELEASE
+  # ============================================================
+  publish-release:
+    name: Publish GitHub Release
+    needs: build-deb
+    runs-on: ubuntu-latest
+
+    if: startsWith(github.ref, 'refs/tags/v') || github.event_name == 'workflow_dispatch'
+
+    steps:
+      # --------------------------------------------------------
+      # Download all packages
+      # --------------------------------------------------------
+      - name: Download all .deb artifacts
+        uses: actions/download-artifact@v4
+        with:
+          pattern: updatecenter-deb-*
+          merge-multiple: true
+          path: release
+
+      # --------------------------------------------------------
+      # Verify release files
+      # --------------------------------------------------------
+      - name: Verify release files
+        run: |
+          set -e
+
+          echo "Release files:"
+
+          find release -type f -maxdepth 2 -print
+
+          DEBS=(release/*.deb)
+
+          if [ ${#DEBS[@]} -eq 0 ]; then
+            echo "ERROR: No .deb packages found."
+            exit 1
+          fi
+
+          for deb in "${DEBS[@]}"; do
+            echo "Found: $deb"
+          done
+
+      # --------------------------------------------------------
+      # Create GitHub Release
+      # --------------------------------------------------------
+      - name: Upload to GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: release/*.deb
+          draft: false
+          prerelease: false
+          generate_release_notes: true
+
+  # ============================================================
+  # PUBLISH CENTRAL APT REPOSITORY
+  # ============================================================
+  publish-apt-repo:
+    name: Publish to central Hyggshi APT repository
+    needs:
+      - build-deb
+    runs-on: ubuntu-latest
+
+    if: startsWith(github.ref, 'refs/tags/v') || github.event_name == 'workflow_dispatch'
+
+    steps:
+      # --------------------------------------------------------
+      # Download all packages
+      # --------------------------------------------------------
+      - name: Download all .deb artifacts
+        uses: actions/download-artifact@v4
+        with:
+          pattern: updatecenter-deb-*
+          merge-multiple: true
+          path: debs
+
+      # --------------------------------------------------------
+      # Verify packages
+      # --------------------------------------------------------
+      - name: Verify downloaded packages
+        run: |
+          set -e
+
+          echo "Downloaded packages:"
+
+          find debs -type f -print
+
+          DEBS=(debs/*.deb)
+
+          if [ ${#DEBS[@]} -eq 0 ]; then
+            echo "ERROR: No .deb files found!"
+            exit 1
+          fi
+
+          echo "Found ${#DEBS[@]} package(s)."
+
+      # --------------------------------------------------------
+      # Install repository tools
+      # --------------------------------------------------------
+      - name: Install APT repository tools
+        run: |
+          set -e
+
+          sudo apt-get update
+
+          sudo apt-get install -y \
+            reprepro \
+            gnupg \
+            pinentry-tty \
+            ca-certificates
+
+      # --------------------------------------------------------
+      # Configure GPG
+      # --------------------------------------------------------
+      - name: Configure GPG
+        run: |
+          set -e
+
+          mkdir -p "$HOME/.gnupg"
+          chmod 700 "$HOME/.gnupg"
+
+          cat > "$HOME/.gnupg/gpg-agent.conf" <<'EOF'
+          allow-loopback-pinentry
+          allow-preset-passphrase
+          EOF
+
+          cat > "$HOME/.gnupg/gpg.conf" <<'EOF'
+          batch
+          no-tty
+          EOF
+
+          gpgconf --kill gpg-agent || true
+          gpgconf --launch gpg-agent
+
+      # --------------------------------------------------------
+      # Import signing key
+      # --------------------------------------------------------
+      - name: Import GPG signing key
+        env:
+          GPG_PRIVATE_KEY: ${{ secrets.GPG_PRIVATE_KEY }}
+        run: |
+          set -e
+
+          if [ -z "$GPG_PRIVATE_KEY" ]; then
+            echo "ERROR: GPG_PRIVATE_KEY secret is empty."
+            exit 1
+          fi
+
+          echo "$GPG_PRIVATE_KEY" | \
+            gpg \
+              --batch \
+              --import
+
+          echo
+          echo "Imported secret keys:"
+          gpg --list-secret-keys --keyid-format LONG
+
+      # --------------------------------------------------------
+      # Verify signing key
+      # --------------------------------------------------------
+      - name: Verify GPG signing key
+        run: |
+          set -e
+
+          KEY_ID="33F527C35036B510FFD10A1078517E50002AC314"
+
+          echo "Checking signing key..."
+
+          if ! gpg --list-secret-keys "$KEY_ID" >/dev/null 2>&1; then
+            echo "ERROR: Signing key was not imported."
+            exit 1
+          fi
+
+          echo "Signing key found:"
+          gpg --list-secret-keys --keyid-format LONG "$KEY_ID"
+
+      # --------------------------------------------------------
+      # Checkout central APT repository
+      # --------------------------------------------------------
+      - name: Checkout central apt-repo
+        uses: actions/checkout@v4
+        with:
+          repository: Hyggshi-OS-Foundation/apt-repo
+          ref: gh-pages
+          token: ${{ secrets.APT_REPO_TOKEN }}
+          path: apt-repo
+
+      # --------------------------------------------------------
+      # Configure reprepro
+      # --------------------------------------------------------
+      - name: Configure reprepro
+        run: |
+          set -e
+
+          cd apt-repo
+
+          mkdir -p conf
+
+          if [ ! -f conf/distributions ]; then
+            cat > conf/distributions <<'EOF'
+          Origin: Hyggshi OS
+          Label: Hyggshi OS
+          Codename: stable
+          Suite: stable
+          Architectures: amd64 arm64
+          Components: main
+          Description: Hyggshi OS APT Repository
+          SignWith: 33F527C35036B510FFD10A1078517E50002AC314
+          EOF
+          fi
+
+          echo "APT distributions configuration:"
+          cat conf/distributions
+
+      # --------------------------------------------------------
+      # Add packages
+      # --------------------------------------------------------
+      - name: Include packages into APT repository
+        env:
+          GPG_PASSPHRASE: ${{ secrets.GPG_PASSPHRASE }}
+        run: |
+          set -e
+
+          cd apt-repo
+
+          if [ -z "$GPG_PASSPHRASE" ]; then
+            echo "ERROR: GPG_PASSPHRASE secret is empty."
+            exit 1
+          fi
+
+          # Unlock the signing key non-interactively by pre-seeding the
+          # passphrase into gpg-agent (no TTY is available in CI).
+          KEYGRIP=$(gpg \
+            --with-keygrip \
+            --list-secret-keys "33F527C35036B510FFD10A1078517E50002AC314" \
+            | awk '/Keygrip/{print $2; exit}')
+
+          if [ -z "$KEYGRIP" ]; then
+            echo "ERROR: Could not find the keygrip for the signing key."
+            exit 1
+          fi
+
+          echo "Unlocking signing key keygrip ${KEYGRIP} in gpg-agent..."
+
+          gpg-preset-passphrase --passphrase "$GPG_PASSPHRASE" --preset "$KEYGRIP"
+
+          shopt -s nullglob
+
+          DEBS=(../debs/*.deb)
+
+          if [ ${#DEBS[@]} -eq 0 ]; then
+            echo "ERROR: No .deb files found."
+            exit 1
+          fi
+
+          for deb in "${DEBS[@]}"; do
+            echo "Including package:"
+            echo "  $deb"
+
+            reprepro \
+              includedeb \
+              stable \
+              "$deb"
+          done
+
+      # --------------------------------------------------------
+      # Generate Release metadata
+      # --------------------------------------------------------
+      - name: Generate APT Release metadata
+        run: |
+          set -e
+
+          cd apt-repo
+
+          echo "APT repository structure:"
+
+          find dists/stable -maxdepth 3 -type f -print | sort
+
+      # --------------------------------------------------------
+      # Sign Release files
+      # --------------------------------------------------------
+      - name: Sign APT Release files
+        env:
+          GPG_PASSPHRASE: ${{ secrets.GPG_PASSPHRASE }}
+        run: |
+          set -e
+
+          KEY_ID="33F527C35036B510FFD10A1078517E50002AC314"
+
+          if [ -z "$GPG_PASSPHRASE" ]; then
+            echo "ERROR: GPG_PASSPHRASE secret is empty."
+            exit 1
+          fi
+
+          cd apt-repo/dists/stable
+
+          if [ ! -f Release ]; then
+            echo "ERROR: Release file does not exist."
+            exit 1
+          fi
+
+          echo "Signing Release with:"
+          echo "$KEY_ID"
+
+          # Detached signature
+          gpg \
+            --batch \
+            --yes \
+            --pinentry-mode loopback \
+            --passphrase "$GPG_PASSPHRASE" \
+            --local-user "$KEY_ID" \
+            --armor \
+            --detach-sign \
+            --output Release.gpg \
+            Release
+
+          # Clear-signed InRelease
+          gpg \
+            --batch \
+            --yes \
+            --pinentry-mode loopback \
+            --passphrase "$GPG_PASSPHRASE" \
+            --local-user "$KEY_ID" \
+            --armor \
+            --clearsign \
+            --output InRelease \
+            Release
+
+          echo
+          echo "Generated signatures:"
+          ls -lh Release Release.gpg InRelease
+
+      # --------------------------------------------------------
+      # Verify signatures
+      # --------------------------------------------------------
+      - name: Verify APT signatures
+        run: |
+          set -e
+
+          cd apt-repo/dists/stable
+
+          echo "Verifying Release.gpg..."
+
+          gpg \
+            --verify \
+            Release.gpg \
+            Release
+
+          echo
+          echo "Verifying InRelease..."
+
+          gpg \
+            --verify \
+            InRelease
+
+          echo
+          echo "GPG signatures verified successfully."
+
+      # --------------------------------------------------------
+      # Commit & push repository
+      # --------------------------------------------------------
+      - name: Commit and push APT repository
+        run: |
+          set -e
+
+          cd apt-repo
+
+          git config user.name "Hyggshi CI Bot"
+          git config user.email "ci@hyggshi.os"
+
+          git add dists pool
+
+          if git diff --cached --quiet; then
+            echo "No repository changes to commit."
+            exit 0
+          fi
+
+          git commit \
+            -m "Publish updatecenter ${{ github.ref_name }} via CI"
+
+          git push origin gh-pages
