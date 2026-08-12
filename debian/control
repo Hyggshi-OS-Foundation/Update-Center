@@ -1,0 +1,16 @@
+Source: updatecenter
+Section: utils
+Priority: optional
+Maintainer: Hyggshi OS <hyggshidev@gmail.com>
+Build-Depends: debhelper-compat (= 13), cmake, ninja-build, qt6-base-dev, qt6-tools-dev, qt6-tools-dev-tools
+Standards-Version: 4.6.2
+Rules-Requires-Root: no
+
+Package: updatecenter
+Architecture: any
+Depends: ${shlibs:Depends}, ${misc:Depends}
+Description: Graphical Linux system update manager
+ UpdateCenter is a graphical front-end for APT on Debian/Ubuntu-based
+ distributions. It provides a polished Qt 6 GUI for browsing and installing
+ system updates, viewing update history parsed from real APT/dpkg logs, and
+ managing third-party repositories with GPG key verification.

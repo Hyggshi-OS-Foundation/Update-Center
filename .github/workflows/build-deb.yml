@@ -67,11 +67,23 @@ jobs:
             devscripts \
             gcc \
             make \
+            ninja-build \
             crossbuild-essential-arm64 \
             libc6:arm64 \
+            qt6-base-dev \
+            qt6-tools-dev \
+            qt6-tools-dev-tools \
+            qt6-base-dev:arm64 \
             reprepro \
             gnupg \
             ca-certificates
+
+          # NOTE: Cross-building a Qt 6 application for arm64 also requires an
+          # arm64 Qt toolchain. qt6-base-dev:arm64 provides the dev libraries,
+          # but dpkg-buildpackage -aarm64 will need CMAKE_TOOLCHAIN_FILE / a
+          # cross qmake (or qemu-user) to actually link the Qt 6 binary.
+          # If the arm64 link fails, install qemu-user and a cross qtbase, or
+          # restrict release to amd64 until the arm64 Qt toolchain is ready.
 
       # --------------------------------------------------------
       # Set version

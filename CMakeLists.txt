@@ -33,3 +33,7 @@ set_target_properties(UpdateCenter PROPERTIES
     WIN32_EXECUTABLE ON
     MACOSX_BUNDLE ON
 )
+
+install(TARGETS UpdateCenter
+    RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR}
+)

@@ -1,0 +1,12 @@
+#!/usr/bin/make -f
+%:
+	dh $@ --buildsystem=cmake --parallel
+
+override_dh_auto_configure:
+	dh_auto_configure -- -DCMAKE_BUILD_TYPE=Release -DCMAKE_INSTALL_PREFIX=/usr
+
+override_dh_auto_test:
+	@echo "No test suite configured."
+
+# Resources (QSS, icons) are bundled into the binary via resources.qrc,
+# so the installed target is just the executable.
