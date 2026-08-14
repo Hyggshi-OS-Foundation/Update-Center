@@ -34,6 +34,20 @@ set_target_properties(UpdateCenter PROPERTIES
     MACOSX_BUNDLE ON
 )
 
+include(GNUInstallDirs)
+
 install(TARGETS UpdateCenter
     RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR}
+)
+
+install(FILES updatecenter.desktop
+    DESTINATION ${CMAKE_INSTALL_DATADIR}/applications
+)
+
+install(FILES resources/updatecenter.svg
+    DESTINATION ${CMAKE_INSTALL_DATADIR}/icons/hicolor/scalable/apps
+)
+
+install(FILES resources/updatecenter.svg
+    DESTINATION ${CMAKE_INSTALL_DATADIR}/pixmaps
 )

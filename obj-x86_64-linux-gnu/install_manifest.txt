@@ -1,1 +1,4 @@
 /usr/bin/UpdateCenter
+/usr/share/applications/updatecenter.desktop
+/usr/share/icons/hicolor/scalable/apps/updatecenter.svg
+/usr/share/pixmaps/updatecenter.svg

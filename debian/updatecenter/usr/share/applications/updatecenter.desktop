@@ -1,0 +1,13 @@
+[Desktop Entry]
+Name=Update Center
+GenericName=System Update Manager
+GenericName[vi]=Trình cập nhật hệ thống
+Comment=Check and install software updates
+Comment[vi]=Kiểm tra và cài đặt bản cập nhật phần mềm
+Exec=UpdateCenter
+Icon=updatecenter
+Terminal=false
+Type=Application
+Categories=System;Settings;PackageManager;
+Keywords=update;upgrade;apt;system;packages;cập nhật;
+StartupNotify=true

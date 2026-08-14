@@ -1,0 +1,46 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 128" width="128" height="128">
+  <defs>
+    <linearGradient id="bgGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#3b82f6"/>
+      <stop offset="60%" stop-color="#1d4ed8"/>
+      <stop offset="100%" stop-color="#1e3a8a"/>
+    </linearGradient>
+    <linearGradient id="glowGrad" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" stop-color="#ffffff" stop-opacity="0.3"/>
+      <stop offset="100%" stop-color="#ffffff" stop-opacity="0"/>
+    </linearGradient>
+    <linearGradient id="arrowGrad" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" stop-color="#ffffff"/>
+      <stop offset="100%" stop-color="#e0f2fe"/>
+    </linearGradient>
+    <filter id="shadow" x="-10%" y="-10%" width="125%" height="125%">
+      <feDropShadow dx="0" dy="4" stdDeviation="5" flood-color="#0f172a" flood-opacity="0.3"/>
+    </filter>
+    <filter id="innerGlow">
+      <feDropShadow dx="0" dy="1" stdDeviation="2" flood-color="#000000" flood-opacity="0.2"/>
+    </filter>
+  </defs>
+
+  <!-- Background squircle -->
+  <rect x="8" y="8" width="112" height="112" rx="28" fill="url(#bgGrad)" filter="url(#shadow)"/>
+  
+  <!-- Subtle top glass highlight -->
+  <path d="M 8 36 C 8 20.5 20.5 8 36 8 L 92 8 C 107.5 8 120 20.5 120 36 L 120 54 C 120 54 80 68 8 54 Z" fill="url(#glowGrad)"/>
+  <rect x="8.5" y="8.5" width="111" height="111" rx="27.5" fill="none" stroke="#ffffff" stroke-width="1" stroke-opacity="0.25"/>
+
+  <!-- Sync / Update Arrows -->
+  <g filter="url(#innerGlow)">
+    <!-- Top-right clockwise arc -->
+    <path d="M 40 50 A 28 28 0 0 1 92 64" fill="none" stroke="url(#arrowGrad)" stroke-width="9" stroke-linecap="round"/>
+    <!-- Top-right arrowhead -->
+    <path d="M 83 72 L 95 64 L 98 48 Z" fill="url(#arrowGrad)" stroke-linejoin="round"/>
+
+    <!-- Bottom-left clockwise arc -->
+    <path d="M 88 78 A 28 28 0 0 1 36 64" fill="none" stroke="url(#arrowGrad)" stroke-width="9" stroke-linecap="round"/>
+    <!-- Bottom-left arrowhead -->
+    <path d="M 45 56 L 33 64 L 30 80 Z" fill="url(#arrowGrad)" stroke-linejoin="round"/>
+
+    <!-- Center dot -->
+    <circle cx="64" cy="64" r="5.5" fill="#38bdf8"/>
+  </g>
+</svg>
