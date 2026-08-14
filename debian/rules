@@ -8,11 +8,12 @@ override_dh_auto_configure:
 override_dh_auto_test:
 	@echo "No test suite configured."
 
-# Substitute Qt6 package names with OR-alternatives (e.g. libqt6gui6 | libqt6gui6t64)
-# so the package can be installed on both Ubuntu 24.04 (t64) and Debian/other Ubuntu versions.
+# Substitute Qt6 package names with OR-alternatives (e.g. libqt6gui6 (>= x) | libqt6gui6t64 (>= x))
+# so the package can be installed on both Ubuntu 24.04 (t64) and Debian/Ubuntu 26.04+ (non-t64).
 override_dh_shlibdeps:
 	dh_shlibdeps
-	sed -i -E 's/libqt6([a-z0-9]+)6t64/libqt6\16 | libqt6\16t64/g' debian/updatecenter.substvars
+	python3 -c "import re; f='debian/updatecenter.substvars'; c=open(f).read(); c=re.sub(r'(libqt6[a-z]+6)(?:t64)?(\s*\([^)]+\))?', r'\1\2 | \1t64\2', c); open(f, 'w').write(c)"
+
 
 
 
