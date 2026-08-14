@@ -5,9 +5,9 @@ Version: 1.0.0-1
 Auto-Built-Package: debug-symbols
 Architecture: amd64
 Maintainer: Hyggshi OS <hyggshidev@gmail.com>
-Installed-Size: 2058
+Installed-Size: 2102
 Depends: updatecenter (= 1.0.0-1)
 Section: debug
 Priority: optional
 Description: debug symbols for updatecenter
-Build-Ids: 3685821da3d7938f4c41b6effe35959e2ef82919
+Build-Ids: dd520363b50764d6e55d4a86fefe20c7b009b197

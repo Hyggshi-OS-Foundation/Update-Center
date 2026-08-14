@@ -157,6 +157,32 @@ QPushButton#secondaryButton {
 QPushButton#secondaryButton:hover { background: #F0F3F9; }
 QPushButton#secondaryButton:disabled { color: #B7BFCC; }
 
+QPushButton#logToggleBtn {
+    background: transparent;
+    color: #3E7BFA;
+    border: 1px solid #D6DCE6;
+    border-radius: 6px;
+    padding: 3px 10px;
+    font-size: 11px;
+    font-weight: 500;
+}
+QPushButton#logToggleBtn:hover {
+    background: #E7EAF0;
+    color: #2F6BE8;
+}
+
+QPlainTextEdit#logView {
+    background: #171E2C;
+    color: #38BDF8;
+    font-family: "Ubuntu Mono", "DejaVu Sans Mono", "Consolas", monospace;
+    font-size: 11px;
+    border-radius: 8px;
+    border: 1px solid #263049;
+    padding: 8px;
+    selection-background-color: #3E7BFA;
+    selection-color: #FFFFFF;
+}
+
 /* ---------------- Progress bar ---------------- */
 QProgressBar#checkProgress {
     background: #E7EAF0;

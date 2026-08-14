@@ -21,6 +21,8 @@
 #include <QComboBox>
 #include <QCheckBox>
 #include <QProgressBar>
+#include <QPlainTextEdit>
+#include <QScrollBar>
 #include <QFrame>
 #include <QDateTime>
 #include <QFile>
@@ -289,8 +291,11 @@ QWidget* MainWindow::buildOverviewPage()
 
     // Status card
     auto* statusCard = makeCard();
-    auto* statusLayout = new QHBoxLayout(statusCard);
-    statusLayout->setContentsMargins(24, 24, 24, 24);
+    auto* statusCardLayout = new QVBoxLayout(statusCard);
+    statusCardLayout->setContentsMargins(24, 24, 24, 24);
+    statusCardLayout->setSpacing(14);
+
+    auto* statusLayout = new QHBoxLayout();
     statusLayout->setSpacing(18);
 
     m_statusIconLabel = new QLabel("\u2713");
@@ -321,10 +326,21 @@ QWidget* MainWindow::buildOverviewPage()
     m_checkProgress->hide();
     statusTextLayout->addWidget(m_checkProgress);
 
+    auto* statusLineRow = new QHBoxLayout();
+    statusLineRow->setSpacing(8);
     m_checkStatusLine = new QLabel();
     m_checkStatusLine->setObjectName("mutedLabel");
     m_checkStatusLine->hide();
-    statusTextLayout->addWidget(m_checkStatusLine);
+
+    m_toggleCheckLogBtn = new QPushButton(TR("btn_show_log"));
+    m_toggleCheckLogBtn->setObjectName("logToggleBtn");
+    m_toggleCheckLogBtn->setCursor(Qt::PointingHandCursor);
+    m_toggleCheckLogBtn->hide();
+    connect(m_toggleCheckLogBtn, &QPushButton::clicked, this, &MainWindow::onToggleCheckLog);
+
+    statusLineRow->addWidget(m_checkStatusLine, 1);
+    statusLineRow->addWidget(m_toggleCheckLogBtn, 0);
+    statusTextLayout->addLayout(statusLineRow);
 
     m_checkUpdatesBtn = new QPushButton();
     m_checkUpdatesBtn->setObjectName("primaryButton");
@@ -335,6 +351,15 @@ QWidget* MainWindow::buildOverviewPage()
     statusLayout->addWidget(m_statusIconLabel);
     statusLayout->addLayout(statusTextLayout, 1);
     statusLayout->addWidget(m_checkUpdatesBtn, 0, Qt::AlignTop);
+
+    statusCardLayout->addLayout(statusLayout);
+
+    m_checkLogView = new QPlainTextEdit();
+    m_checkLogView->setObjectName("logView");
+    m_checkLogView->setReadOnly(true);
+    m_checkLogView->setMaximumHeight(150);
+    m_checkLogView->hide();
+    statusCardLayout->addWidget(m_checkLogView);
 
     layout->addWidget(statusCard);
 
@@ -374,11 +399,32 @@ QWidget* MainWindow::buildOverviewPage()
     return page;
 }
 
+void MainWindow::onToggleCheckLog()
+{
+    if (!m_checkLogView)
+        return;
+    const bool show = !m_checkLogView->isVisible();
+    m_checkLogView->setVisible(show);
+    m_toggleCheckLogBtn->setText(show ? TR("btn_hide_log") : TR("btn_show_log"));
+}
+
+void MainWindow::onToggleInstallLog()
+{
+    if (!m_installLogView)
+        return;
+    const bool show = !m_installLogView->isVisible();
+    m_installLogView->setVisible(show);
+    m_toggleInstallLogBtn->setText(show ? TR("btn_hide_log") : TR("btn_show_log"));
+}
+
 void MainWindow::onCheckUpdatesClicked()
 {
     m_checkProgress->show();
     m_checkStatusLine->setText(TR("status_refreshing_index"));
     m_checkStatusLine->show();
+    m_toggleCheckLogBtn->show();
+    m_checkLogView->clear();
+    m_checkLogView->appendPlainText(QStringLiteral("$ pkexec apt-get update\n"));
     m_checkUpdatesBtn->setEnabled(false);
     m_checkUpdatesBtn->setText(TR("btn_checking"));
     m_statusTextLabel->setText(TR("status_checking"));
@@ -395,33 +441,39 @@ void MainWindow::onCheckUpdatesClicked()
 
 void MainWindow::onRefreshOutput(const QString& line)
 {
-    if (!line.isEmpty())
+    if (!line.isEmpty()) {
         m_checkStatusLine->setText(line);
+        m_checkLogView->appendPlainText(line);
+        m_checkLogView->verticalScrollBar()->setValue(m_checkLogView->verticalScrollBar()->maximum());
+    }
 }
 
 void MainWindow::onRefreshFinished(bool success, const QString& errorMessage)
 {
     if (!success) {
         m_checkProgress->hide();
-        m_checkStatusLine->hide();
         m_checkUpdatesBtn->setEnabled(true);
         refreshOverviewCard();
+        m_checkLogView->appendPlainText(QStringLiteral("\n[Error] ") + errorMessage);
         QMessageBox::warning(this, TR("err_title"), TR("err_refresh_failed") + "\n\n" + errorMessage);
         return;
     }
 
     m_checkStatusLine->setText(TR("status_listing"));
+    m_checkLogView->appendPlainText(QStringLiteral("\n$ apt list --upgradable\n"));
     m_apt->listUpgradable();
 }
 
 void MainWindow::onListFinished(const QVector<UpdateItem>& items, const QString& errorMessage)
 {
     m_checkProgress->hide();
-    m_checkStatusLine->hide();
     m_checkUpdatesBtn->setEnabled(true);
 
     if (!errorMessage.isEmpty()) {
+        m_checkLogView->appendPlainText(QStringLiteral("\n[Error] ") + errorMessage);
         QMessageBox::warning(this, TR("err_title"), TR("err_list_failed") + "\n\n" + errorMessage);
+    } else {
+        m_checkLogView->appendPlainText(QStringLiteral("Found %1 upgradable package(s).").arg(items.size()));
     }
 
     m_updates = items;
@@ -430,6 +482,7 @@ void MainWindow::onListFinished(const QVector<UpdateItem>& items, const QString&
     populateUpdatesTable();
     refreshOverviewCard();
 }
+
 
 void MainWindow::refreshOverviewCard()
 {
@@ -482,10 +535,12 @@ QWidget* MainWindow::buildUpdatesPage()
     m_updatesTable->setSelectionMode(QAbstractItemView::NoSelection);
     m_updatesTable->verticalHeader()->setVisible(false);
     m_updatesTable->horizontalHeader()->setStretchLastSection(false);
-    m_updatesTable->horizontalHeader()->setSectionResizeMode(1, QHeaderView::Stretch);
+    m_updatesTable->horizontalHeader()->setSectionResizeMode(0, QHeaderView::Fixed);
     m_updatesTable->setColumnWidth(0, 44);
-    m_updatesTable->setColumnWidth(2, 110);
-    m_updatesTable->setColumnWidth(3, 100);
+    m_updatesTable->horizontalHeader()->setSectionResizeMode(1, QHeaderView::Stretch);
+    m_updatesTable->horizontalHeader()->setSectionResizeMode(2, QHeaderView::ResizeToContents);
+    m_updatesTable->horizontalHeader()->setSectionResizeMode(3, QHeaderView::Fixed);
+    m_updatesTable->setColumnWidth(3, 90);
     m_updatesTable->setShowGrid(false);
     m_updatesTable->setFrameShape(QFrame::NoFrame);
     m_updatesTable->setFocusPolicy(Qt::NoFocus);
@@ -525,6 +580,17 @@ QWidget* MainWindow::buildUpdatesPage()
     m_installStatusLine->setObjectName("mutedLabel");
     m_installStatusLine->hide();
 
+    m_toggleInstallLogBtn = new QPushButton(TR("btn_show_log"));
+    m_toggleInstallLogBtn->setObjectName("logToggleBtn");
+    m_toggleInstallLogBtn->setCursor(Qt::PointingHandCursor);
+    m_toggleInstallLogBtn->hide();
+    connect(m_toggleInstallLogBtn, &QPushButton::clicked, this, &MainWindow::onToggleInstallLog);
+
+    auto* statusLineRow = new QHBoxLayout();
+    statusLineRow->setSpacing(8);
+    statusLineRow->addWidget(m_installStatusLine, 1);
+    statusLineRow->addWidget(m_toggleInstallLogBtn, 0);
+
     // Shown whenever we're not mid-install: "N updates selected · Download: X MB"
     m_selectionSummaryLabel = new QLabel();
     m_selectionSummaryLabel->setObjectName("mutedLabel");
@@ -536,15 +602,22 @@ QWidget* MainWindow::buildUpdatesPage()
     connect(m_installSelectedBtn, &QPushButton::clicked, this, &MainWindow::onInstallSelectedClicked);
 
     auto* progressCol = new QVBoxLayout();
-    progressCol->setSpacing(2);
+    progressCol->setSpacing(4);
     progressCol->addWidget(m_installProgress);
-    progressCol->addWidget(m_installStatusLine);
+    progressCol->addLayout(statusLineRow);
     progressCol->addWidget(m_selectionSummaryLabel);
 
     footer->addWidget(m_selectAllBtn);
     footer->addLayout(progressCol, 1);
     footer->addWidget(m_installSelectedBtn);
     layout->addLayout(footer);
+
+    m_installLogView = new QPlainTextEdit();
+    m_installLogView->setObjectName("logView");
+    m_installLogView->setReadOnly(true);
+    m_installLogView->setMaximumHeight(150);
+    m_installLogView->hide();
+    layout->addWidget(m_installLogView);
 
     return page;
 }
@@ -623,19 +696,37 @@ void MainWindow::populateUpdatesTable()
         iconLabel->setFixedSize(22, 22);
         auto* nameLabel = new QLabel(u.name);
         nameLabel->setObjectName("pkgNameLabel");
+        nameLabel->setToolTip(u.name);
         nameLayout->addWidget(iconLabel);
         nameLayout->addWidget(nameLabel, 1);
         m_updatesTable->setCellWidget(row, 1, nameWidget);
 
-        auto* versionItem = new QTableWidgetItem(u.currentVersion + "  \u2192  " + u.newVersion);
-        auto* sizeItem = new QTableWidgetItem(u.sizeString());
+        QString versionText;
+        if (!u.currentVersion.isEmpty() && !u.newVersion.isEmpty() && u.currentVersion != u.newVersion) {
+            versionText = u.currentVersion + QStringLiteral("  \u2192  ") + u.newVersion;
+        } else if (!u.newVersion.isEmpty()) {
+            versionText = u.newVersion;
+        } else {
+            versionText = u.currentVersion;
+        }
+
+        auto* versionItem = new QTableWidgetItem(versionText);
         versionItem->setTextAlignment(Qt::AlignCenter);
+        versionItem->setToolTip(versionText);
+
+        auto* sizeItem = new QTableWidgetItem(u.sizeString());
         sizeItem->setTextAlignment(Qt::AlignCenter);
+        sizeItem->setToolTip(u.sizeString());
 
         m_updatesTable->setItem(row, 2, versionItem);
         m_updatesTable->setItem(row, 3, sizeItem);
         m_updatesTable->setRowHeight(row, 46);
     }
+
+    m_updatesTable->resizeColumnToContents(2);
+    if (m_updatesTable->columnWidth(2) < 220)
+        m_updatesTable->setColumnWidth(2, 220);
+    m_updatesTable->horizontalHeader()->setSectionResizeMode(2, QHeaderView::Interactive);
 
     const bool empty = m_updates.isEmpty();
     m_updatesTable->setVisible(!empty);
@@ -696,6 +787,9 @@ void MainWindow::onInstallSelectedClicked()
     m_installProgress->show();
     m_installStatusLine->setText(TR("installing"));
     m_installStatusLine->show();
+    m_toggleInstallLogBtn->show();
+    m_installLogView->clear();
+    m_installLogView->appendPlainText(QStringLiteral("$ pkexec apt-get install --only-upgrade -y ") + selectedNames.join(' ') + "\n");
     m_selectionSummaryLabel->hide();
     m_installSelectedBtn->setEnabled(false);
     m_installSelectedBtn->setText(TR("installing"));
@@ -707,8 +801,11 @@ void MainWindow::onInstallSelectedClicked()
 
 void MainWindow::onInstallOutput(const QString& line)
 {
-    if (!line.isEmpty())
+    if (!line.isEmpty()) {
         m_installStatusLine->setText(line);
+        m_installLogView->appendPlainText(line);
+        m_installLogView->verticalScrollBar()->setValue(m_installLogView->verticalScrollBar()->maximum());
+    }
 }
 
 void MainWindow::onInstallSummaryReady(int upgraded, int notUpgraded, bool restartRequired)
@@ -722,19 +819,22 @@ void MainWindow::onInstallFinished(bool success, const QString& errorMessage)
 {
     m_installInProgress = false;
     m_installProgress->hide();
-    m_installStatusLine->hide();
     m_installSelectedBtn->setText(TR("btn_install_selected"));
     m_installSelectedBtn->setEnabled(true);
     m_selectAllBtn->setEnabled(true);
 
     if (!success) {
+        m_installLogView->appendPlainText(QStringLiteral("\n[Error] ") + errorMessage);
         QMessageBox::warning(this, TR("err_title"), TR("err_install_failed") + "\n\n" + errorMessage);
         updateSelectionSummary();
         return;
     }
 
+    m_installLogView->appendPlainText(QStringLiteral("\n[Success] Installation completed."));
+
     // The installed packages are now recorded in apt/dpkg's real logs, so just
     // keep whatever wasn't selected as still pending and reload history from
+
     // disk (the GUI never fabricates history rows).
     QVector<UpdateItem> remaining;
     for (const auto& u : std::as_const(m_updates)) {
@@ -1452,6 +1552,8 @@ void MainWindow::retranslateUi()
     // Overview
     m_overviewHeading->setText(TR("overview_heading"));
     m_overviewSubtitle->setText(TR("overview_subtitle"));
+    if (m_toggleCheckLogBtn)
+        m_toggleCheckLogBtn->setText(m_checkLogView && m_checkLogView->isVisible() ? TR("btn_hide_log") : TR("btn_show_log"));
     m_channelCombo->blockSignals(true);
     m_channelCombo->clear();
     m_channelCombo->addItem(TR("channel_stable"));
@@ -1467,6 +1569,8 @@ void MainWindow::retranslateUi()
     m_noUpdatesSubtitle->setText(TR("no_updates_subtitle"));
     m_selectAllBtn->setText(TR("btn_select_all"));
     m_installSelectedBtn->setText(m_installInProgress ? TR("installing") : TR("btn_install_selected"));
+    if (m_toggleInstallLogBtn)
+        m_toggleInstallLogBtn->setText(m_installLogView && m_installLogView->isVisible() ? TR("btn_hide_log") : TR("btn_show_log"));
     updateSelectionSummary();
 
     // History page

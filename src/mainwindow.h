@@ -21,6 +21,7 @@ class QComboBox;
 class QCheckBox;
 class QProgressBar;
 class QTimer;
+class QPlainTextEdit;
 
 class MainWindow : public QMainWindow
 {
@@ -37,6 +38,8 @@ private slots:
     void onLanguageChanged(int index);
     void onDarkModeToggled(bool checked);
     void onAddRepoClicked();
+    void onToggleCheckLog();
+    void onToggleInstallLog();
     void retranslateUi();
 
     // AptManager callbacks
@@ -99,6 +102,8 @@ private:
     QPushButton* m_checkUpdatesBtn = nullptr;
     QProgressBar* m_checkProgress = nullptr;
     QLabel* m_checkStatusLine = nullptr; // live output from apt-get update
+    QPushButton* m_toggleCheckLogBtn = nullptr;
+    QPlainTextEdit* m_checkLogView = nullptr;
     QString m_lastCheckedTime;
 
     // ---- updates page widgets ----
@@ -111,6 +116,8 @@ private:
     QPushButton* m_installSelectedBtn = nullptr;
     QProgressBar* m_installProgress = nullptr;
     QLabel* m_installStatusLine = nullptr; // live output from apt-get install
+    QPushButton* m_toggleInstallLogBtn = nullptr;
+    QPlainTextEdit* m_installLogView = nullptr;
     QLabel* m_selectionSummaryLabel = nullptr; // "N updates selected · Download: X MB"
     bool m_selectAllState = true;
     bool m_installInProgress = false;

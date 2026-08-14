@@ -89,6 +89,8 @@ void Lang::loadStrings()
     add("install_done",        "Installation complete",               "Cài đặt hoàn tất");
     add("selection_summary",   "%1 updates selected",                 "%1 bản cập nhật đã chọn");
     add("selection_download",  "Download: %1",                        "Dung lượng tải: %1");
+    add("btn_show_log",        "Show Log",                            "Xem nhật ký");
+    add("btn_hide_log",        "Hide Log",                            "Ẩn nhật ký");
 
     // ---- Install-complete dialog ----
     add("install_complete_title",    "Update completed",              "Cập nhật hoàn tất");
