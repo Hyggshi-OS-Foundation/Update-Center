@@ -39,12 +39,14 @@ void AptManager::refreshIndex()
 {
     auto* proc = new QProcess(this);
     m_currentProcess = proc;
+    m_refreshOutputBuffer.clear();
     proc->setProgram("pkexec");
     proc->setArguments({ "apt-get", "update" });
     proc->setProcessChannelMode(QProcess::MergedChannels);
 
     connect(proc, &QProcess::readyReadStandardOutput, this, [this, proc]() {
         const QString chunk = QString::fromUtf8(proc->readAllStandardOutput());
+        m_refreshOutputBuffer += chunk;
         const auto lines = chunk.split('\n', Qt::SkipEmptyParts);
         for (const QString& l : lines)
             emit refreshOutput(l.trimmed());
@@ -55,9 +57,21 @@ void AptManager::refreshIndex()
         const bool ok = (status == QProcess::NormalExit && exitCode == 0);
         QString err;
         if (!ok) {
-            err = exitCode == 126 || exitCode == 127
-                ? QStringLiteral("Authentication was cancelled or pkexec is unavailable.")
-                : QStringLiteral("apt-get update exited with code %1.").arg(exitCode);
+            if (exitCode == 126 || exitCode == 127) {
+                err = QStringLiteral("Authentication was cancelled or pkexec is unavailable.");
+            } else {
+                err = QStringLiteral("apt-get update exited with code %1.").arg(exitCode);
+                // Extract Err: / E: lines from the buffered output so the user
+                // can see which repository failed without reading the full log.
+                QStringList errLines;
+                for (const QString& line : m_refreshOutputBuffer.split('\n', Qt::SkipEmptyParts)) {
+                    const QString t = line.trimmed();
+                    if (t.startsWith(QLatin1String("Err:")) || t.startsWith(QLatin1String("E:")))
+                        errLines.append(t);
+                }
+                if (!errLines.isEmpty())
+                    err += QStringLiteral("\n\n") + errLines.join('\n');
+            }
         }
         emit refreshFinished(ok, err);
         if (m_currentProcess == proc)

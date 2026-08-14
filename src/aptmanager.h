@@ -61,5 +61,6 @@ private:
     qint64 fetchDownloadSize(const QString& packageName) const;
 
     QProcess* m_currentProcess = nullptr;
+    QString m_refreshOutputBuffer;
     QString m_installOutputBuffer;
 };
