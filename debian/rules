@@ -9,10 +9,10 @@ override_dh_auto_test:
 	@echo "No test suite configured."
 
 # Substitute Qt6 package names with OR-alternatives (e.g. libqt6gui6 | libqt6gui6t64)
-# so the package can be installed on both Ubuntu Noble (t64) and Debian/other Ubuntu versions.
+# so the package can be installed on both Ubuntu 24.04 (t64) and Debian/other Ubuntu versions.
 override_dh_shlibdeps:
 	dh_shlibdeps
-	sed -i -E 's/(libqt6[a-z0-9]+6)t64/\1 | \1t64/g' debian/updatecenter.substvars
-	sed -i -E 's/(libqt6[a-z0-9]+6)([^|t64]|$)/\1 | \1t64\2/g' debian/updatecenter.substvars
+	sed -i -E 's/libqt6([a-z0-9]+)6t64/libqt6\16 | libqt6\16t64/g' debian/updatecenter.substvars
+
 
 
