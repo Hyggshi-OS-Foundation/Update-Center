@@ -1,46 +1,37 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 128" width="128" height="128">
-  <defs>
-    <linearGradient id="bgGrad" x1="0%" y1="0%" x2="100%" y2="100%">
-      <stop offset="0%" stop-color="#3b82f6"/>
-      <stop offset="60%" stop-color="#1d4ed8"/>
-      <stop offset="100%" stop-color="#1e3a8a"/>
-    </linearGradient>
-    <linearGradient id="glowGrad" x1="0%" y1="0%" x2="0%" y2="100%">
-      <stop offset="0%" stop-color="#ffffff" stop-opacity="0.3"/>
-      <stop offset="100%" stop-color="#ffffff" stop-opacity="0"/>
-    </linearGradient>
-    <linearGradient id="arrowGrad" x1="0%" y1="0%" x2="0%" y2="100%">
-      <stop offset="0%" stop-color="#ffffff"/>
-      <stop offset="100%" stop-color="#e0f2fe"/>
-    </linearGradient>
-    <filter id="shadow" x="-10%" y="-10%" width="125%" height="125%">
-      <feDropShadow dx="0" dy="4" stdDeviation="5" flood-color="#0f172a" flood-opacity="0.3"/>
-    </filter>
-    <filter id="innerGlow">
-      <feDropShadow dx="0" dy="1" stdDeviation="2" flood-color="#000000" flood-opacity="0.2"/>
-    </filter>
-  </defs>
-
-  <!-- Background squircle -->
-  <rect x="8" y="8" width="112" height="112" rx="28" fill="url(#bgGrad)" filter="url(#shadow)"/>
-  
-  <!-- Subtle top glass highlight -->
-  <path d="M 8 36 C 8 20.5 20.5 8 36 8 L 92 8 C 107.5 8 120 20.5 120 36 L 120 54 C 120 54 80 68 8 54 Z" fill="url(#glowGrad)"/>
-  <rect x="8.5" y="8.5" width="111" height="111" rx="27.5" fill="none" stroke="#ffffff" stroke-width="1" stroke-opacity="0.25"/>
-
-  <!-- Sync / Update Arrows -->
-  <g filter="url(#innerGlow)">
-    <!-- Top-right clockwise arc -->
-    <path d="M 40 50 A 28 28 0 0 1 92 64" fill="none" stroke="url(#arrowGrad)" stroke-width="9" stroke-linecap="round"/>
-    <!-- Top-right arrowhead -->
-    <path d="M 83 72 L 95 64 L 98 48 Z" fill="url(#arrowGrad)" stroke-linejoin="round"/>
-
-    <!-- Bottom-left clockwise arc -->
-    <path d="M 88 78 A 28 28 0 0 1 36 64" fill="none" stroke="url(#arrowGrad)" stroke-width="9" stroke-linecap="round"/>
-    <!-- Bottom-left arrowhead -->
-    <path d="M 45 56 L 33 64 L 30 80 Z" fill="url(#arrowGrad)" stroke-linejoin="round"/>
-
-    <!-- Center dot -->
-    <circle cx="64" cy="64" r="5.5" fill="#38bdf8"/>
-  </g>
+<svg width="128" height="128" viewBox="0 0 128 128" fill="none" xmlns="http://www.w3.org/2000/svg">
+<path d="M92 8H36C20.536 8 8 20.536 8 36V92C8 107.464 20.536 120 36 120H92C107.464 120 120 107.464 120 92V36C120 20.536 107.464 8 92 8Z" fill="url(#paint0_linear_803_17)"/>
+<path d="M8 36C8 20.5 20.5 8 36 8H92C107.5 8 120 20.5 120 36V54C120 54 80 68 8 54V36Z" fill="url(#paint1_linear_803_17)"/>
+<path d="M92 8.5H36C20.8122 8.5 8.5 20.8122 8.5 36V92C8.5 107.188 20.8122 119.5 36 119.5H92C107.188 119.5 119.5 107.188 119.5 92V36C119.5 20.8122 107.188 8.5 92 8.5Z" stroke="white" stroke-opacity="0.25"/>
+<path d="M40 50C43.134 44.7822 47.8828 40.7277 53.5275 38.4505C59.1721 36.1733 65.405 35.7974 71.2824 37.3798C77.1597 38.9621 82.3614 42.4166 86.0997 47.2199C89.838 52.0233 91.9093 57.914 92 64" stroke="url(#paint2_linear_803_17)" stroke-width="9" stroke-linecap="round"/>
+<path d="M78.0001 63L90.9283 69.3923L106.285 63.9904L78.0001 63Z" fill="url(#paint3_linear_803_17)"/>
+<path d="M88 78C84.866 83.2178 80.1172 87.2723 74.4725 89.5495C68.8279 91.8267 62.595 92.2026 56.7176 90.6202C50.8403 89.0378 45.6386 85.5834 41.9003 80.78C38.162 75.9767 36.0907 70.086 36 64" stroke="url(#paint4_linear_803_17)" stroke-width="9" stroke-linecap="round"/>
+<path d="M50.2845 64.9904L37.3563 58.5981L21.9999 64L50.2845 64.9904Z" fill="url(#paint5_linear_803_17)"/>
+<path d="M64 69.5C67.0376 69.5 69.5 67.0376 69.5 64C69.5 60.9624 67.0376 58.5 64 58.5C60.9624 58.5 58.5 60.9624 58.5 64C58.5 67.0376 60.9624 69.5 64 69.5Z" fill="#38BDF8"/>
+<defs>
+<linearGradient id="paint0_linear_803_17" x1="8" y1="8" x2="120" y2="120" gradientUnits="userSpaceOnUse">
+<stop stop-color="#3B82F6"/>
+<stop offset="0.6" stop-color="#1D4ED8"/>
+<stop offset="1" stop-color="#1E3A8A"/>
+</linearGradient>
+<linearGradient id="paint1_linear_803_17" x1="8" y1="8" x2="8" y2="60.2222" gradientUnits="userSpaceOnUse">
+<stop stop-color="white" stop-opacity="0.3"/>
+<stop offset="1" stop-color="white" stop-opacity="0"/>
+</linearGradient>
+<linearGradient id="paint2_linear_803_17" x1="40" y1="36.417" x2="40" y2="64" gradientUnits="userSpaceOnUse">
+<stop stop-color="white"/>
+<stop offset="1" stop-color="#E0F2FE"/>
+</linearGradient>
+<linearGradient id="paint3_linear_803_17" x1="98.7847" y1="51" x2="78.0001" y2="63" gradientUnits="userSpaceOnUse">
+<stop stop-color="white"/>
+<stop offset="1" stop-color="#E0F2FE"/>
+</linearGradient>
+<linearGradient id="paint4_linear_803_17" x1="36" y1="64" x2="36" y2="91.583" gradientUnits="userSpaceOnUse">
+<stop stop-color="white"/>
+<stop offset="1" stop-color="#E0F2FE"/>
+</linearGradient>
+<linearGradient id="paint5_linear_803_17" x1="42.7845" y1="52" x2="21.9999" y2="64" gradientUnits="userSpaceOnUse">
+<stop stop-color="white"/>
+<stop offset="1" stop-color="#E0F2FE"/>
+</linearGradient>
+</defs>
 </svg>

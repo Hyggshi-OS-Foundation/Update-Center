@@ -335,7 +335,6 @@ QWidget* MainWindow::buildOverviewPage()
     m_toggleCheckLogBtn = new QPushButton(TR("btn_show_log"));
     m_toggleCheckLogBtn->setObjectName("logToggleBtn");
     m_toggleCheckLogBtn->setCursor(Qt::PointingHandCursor);
-    m_toggleCheckLogBtn->hide();
     connect(m_toggleCheckLogBtn, &QPushButton::clicked, this, &MainWindow::onToggleCheckLog);
 
     statusLineRow->addWidget(m_checkStatusLine, 1);
@@ -357,7 +356,8 @@ QWidget* MainWindow::buildOverviewPage()
     m_checkLogView = new QPlainTextEdit();
     m_checkLogView->setObjectName("logView");
     m_checkLogView->setReadOnly(true);
-    m_checkLogView->setMaximumHeight(150);
+    m_checkLogView->setMaximumHeight(160);
+    m_checkLogView->setPlainText(QStringLiteral("$ Terminal log stream ready."));
     m_checkLogView->hide();
     statusCardLayout->addWidget(m_checkLogView);
 
@@ -583,17 +583,18 @@ QWidget* MainWindow::buildUpdatesPage()
     m_toggleInstallLogBtn = new QPushButton(TR("btn_show_log"));
     m_toggleInstallLogBtn->setObjectName("logToggleBtn");
     m_toggleInstallLogBtn->setCursor(Qt::PointingHandCursor);
-    m_toggleInstallLogBtn->hide();
     connect(m_toggleInstallLogBtn, &QPushButton::clicked, this, &MainWindow::onToggleInstallLog);
-
-    auto* statusLineRow = new QHBoxLayout();
-    statusLineRow->setSpacing(8);
-    statusLineRow->addWidget(m_installStatusLine, 1);
-    statusLineRow->addWidget(m_toggleInstallLogBtn, 0);
 
     // Shown whenever we're not mid-install: "N updates selected · Download: X MB"
     m_selectionSummaryLabel = new QLabel();
     m_selectionSummaryLabel->setObjectName("mutedLabel");
+
+    auto* statusLineRow = new QHBoxLayout();
+    statusLineRow->setSpacing(8);
+    statusLineRow->addWidget(m_installStatusLine, 1);
+    statusLineRow->addWidget(m_selectionSummaryLabel, 1);
+    statusLineRow->addStretch();
+    statusLineRow->addWidget(m_toggleInstallLogBtn, 0);
 
     m_installSelectedBtn = new QPushButton();
     m_installSelectedBtn->setObjectName("primaryButton");
@@ -605,7 +606,6 @@ QWidget* MainWindow::buildUpdatesPage()
     progressCol->setSpacing(4);
     progressCol->addWidget(m_installProgress);
     progressCol->addLayout(statusLineRow);
-    progressCol->addWidget(m_selectionSummaryLabel);
 
     footer->addWidget(m_selectAllBtn);
     footer->addLayout(progressCol, 1);
@@ -615,11 +615,13 @@ QWidget* MainWindow::buildUpdatesPage()
     m_installLogView = new QPlainTextEdit();
     m_installLogView->setObjectName("logView");
     m_installLogView->setReadOnly(true);
-    m_installLogView->setMaximumHeight(150);
+    m_installLogView->setMaximumHeight(160);
+    m_installLogView->setPlainText(QStringLiteral("$ Terminal log stream ready."));
     m_installLogView->hide();
     layout->addWidget(m_installLogView);
 
     return page;
+
 }
 
 QIcon MainWindow::iconForPackage(const QString& packageName) const
