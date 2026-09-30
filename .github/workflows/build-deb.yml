@@ -16,14 +16,16 @@ jobs:
   # ============================================================
   build-deb:
     name: Build .deb Package (${{ matrix.arch }})
-    runs-on: ubuntu-latest
+    runs-on: ${{ matrix.runner }}
 
     strategy:
       fail-fast: false
       matrix:
-        arch:
-          - amd64
-          - arm64
+        include:
+          - arch: amd64
+            runner: ubuntu-24.04
+          - arch: arm64
+            runner: ubuntu-24.04-arm   # native arm64 runner, no cross-compile
 
     steps:
       # --------------------------------------------------------
@@ -33,55 +35,32 @@ jobs:
         uses: actions/checkout@v4
 
       # --------------------------------------------------------
-      # Install dependencies
+      # Install dependencies (native, per-arch)
       # --------------------------------------------------------
       - name: Install build dependencies
         run: |
           set -e
-
-          sudo dpkg --add-architecture arm64
-
-          if [ -f /etc/apt/sources.list.d/ubuntu.sources ]; then
-            sudo sed -i '/^Types: deb$/a Architectures: amd64' \
-              /etc/apt/sources.list.d/ubuntu.sources
-          fi
-
-          UBUNTU_CODENAME="$(. /etc/os-release && echo "$VERSION_CODENAME")"
-
-          echo "Ubuntu codename: ${UBUNTU_CODENAME}"
-
-          echo "deb [arch=arm64] http://ports.ubuntu.com/ubuntu-ports ${UBUNTU_CODENAME} main restricted universe multiverse" \
-            | sudo tee /etc/apt/sources.list.d/arm64-ports.list
-
-          echo "deb [arch=arm64] http://ports.ubuntu.com/ubuntu-ports ${UBUNTU_CODENAME}-updates main restricted universe multiverse" \
-            | sudo tee -a /etc/apt/sources.list.d/arm64-ports.list
-
-          echo "deb [arch=arm64] http://ports.ubuntu.com/ubuntu-ports ${UBUNTU_CODENAME}-security main restricted universe multiverse" \
-            | sudo tee -a /etc/apt/sources.list.d/arm64-ports.list
-
           sudo apt-get update
-
           sudo apt-get install -y \
             build-essential \
             debhelper \
             devscripts \
-            gcc \
-            make \
+            cmake \
             ninja-build \
-            crossbuild-essential-arm64 \
-            libc6:arm64 \
             qt6-base-dev \
             qt6-tools-dev \
             qt6-tools-dev-tools \
-            qt6-base-dev:arm64 \
-            reprepro \
-            gnupg \
+            libgl1-mesa-dev \
+            python3 \
             ca-certificates
 
       # --------------------------------------------------------
       # Set version
       # --------------------------------------------------------
       - name: Set version
+        env:
+          DEBFULLNAME: Hyggshi CI Bot
+          DEBEMAIL: ci@hyggshi.os
         run: |
           set -e
 
@@ -101,7 +80,6 @@ jobs:
           fi
 
           echo "VERSION=${VERSION}" >> "$GITHUB_ENV"
-
           echo "Building version: ${VERSION}"
 
           dch \
@@ -110,78 +88,17 @@ jobs:
             "Release version ${VERSION}"
 
       # --------------------------------------------------------
-      # Build amd64
+      # Build (native for the runner's architecture)
       # --------------------------------------------------------
-      - name: Build for amd64
-        if: matrix.arch == 'amd64'
-        env:
-          DEB_HOST_ARCH: amd64
+      - name: Build .deb
         run: |
           set -e
 
-          make clean || true
-
-          dpkg-buildpackage \
-            -us \
-            -uc \
-            -b \
-            -d \
-            -aamd64
+          dpkg-buildpackage -us -uc -b
 
           mkdir -p dist
-
           shopt -s nullglob
-
-          for file in ../updatecenter_*.deb; do
-            mv "$file" dist/
-          done
-
-          for file in ../updatecenter_*.buildinfo; do
-            mv "$file" dist/
-          done
-
-          for file in ../updatecenter_*.changes; do
-            mv "$file" dist/
-          done
-
-          echo "Generated files:"
-          ls -lah dist/
-
-      # --------------------------------------------------------
-      # Build arm64
-      # --------------------------------------------------------
-      - name: Build for arm64
-        if: matrix.arch == 'arm64'
-        env:
-          CC: aarch64-linux-gnu-gcc
-          CXX: aarch64-linux-gnu-g++
-          DEB_HOST_ARCH: arm64
-          DEB_BUILD_OPTIONS: nocheck
-        run: |
-          set -e
-
-          make clean || true
-
-          dpkg-buildpackage \
-            -us \
-            -uc \
-            -b \
-            -d \
-            -aarm64
-
-          mkdir -p dist
-
-          shopt -s nullglob
-
-          for file in ../updatecenter_*.deb; do
-            mv "$file" dist/
-          done
-
-          for file in ../updatecenter_*.buildinfo; do
-            mv "$file" dist/
-          done
-
-          for file in ../updatecenter_*.changes; do
+          for file in ../updatecenter_*.deb ../updatecenter_*.buildinfo ../updatecenter_*.changes; do
             mv "$file" dist/
           done
 
